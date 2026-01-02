@@ -12,7 +12,7 @@ echo "Updating system packages..."
 sudo apt update -y
 sudo apt upgrade -y
 
-# Install Java (OpenJDK 21 - Tomcat 11 requires Java 17+)
+# Install Java (OpenJDK 25 - Tomcat 11 requires Java 17+)
 echo "Installing OpenJDK 25..."
 sudo apt install openjdk-25-jdk -y
 

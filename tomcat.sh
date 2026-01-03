@@ -1,70 +1,95 @@
 #!/bin/bash
 
-# Tomcat 11.0.15 Installation Script
-# This script will install Java, download Tomcat, configure it, and start the service
+# Tomcat 11.0.15 Production Installation Script
+
+set -e
+
+TOMCAT_VERSION="11.0.15"
+TOMCAT_ZIP="apache-tomcat-${TOMCAT_VERSION}.zip"
+TOMCAT_DIR="apache-tomcat-${TOMCAT_VERSION}"
+INSTALL_DIR="/opt/tomcat"
 
 echo "=========================================="
-echo "Starting Tomcat 11.0.15 Installation"
+echo "Starting Tomcat ${TOMCAT_VERSION} Installation"
 echo "=========================================="
 
-# Update system packages
+# Update system
 echo "Updating system packages..."
 sudo apt update -y
 sudo apt upgrade -y
 
-# Install Java (OpenJDK 25 - Tomcat 11 requires Java 17+)
+# Install Java (Tomcat 11 requires Java 17+)
 echo "Installing OpenJDK 25..."
-sudo apt install openjdk-25-jdk -y
-
-# Install unzip utility
-echo "Installing unzip..."
-sudo apt install unzip -y
+sudo apt install -y openjdk-25-jdk unzip curl
 
 # Download Tomcat
-echo "Downloading Tomcat 11.0.15..."
+echo "Downloading Tomcat..."
 cd /opt
-sudo wget https://dlcdn.apache.org/tomcat/tomcat-11/v11.0.15/bin/apache-tomcat-11.0.15.zip
+sudo wget -q https://dlcdn.apache.org/tomcat/tomcat-11/v${TOMCAT_VERSION}/bin/${TOMCAT_ZIP}
 
-# Extract and rename
+# Extract
 echo "Extracting Tomcat..."
-sudo unzip apache-tomcat-11.0.15.zip
-sudo mv apache-tomcat-11.0.15 tomcat
+sudo unzip -q ${TOMCAT_ZIP}
+sudo mv ${TOMCAT_DIR} tomcat
 
-# Create tomcat user and group
+# Remove ZIP (cleanup)
+echo "Removing installation ZIP..."
+sudo rm -f ${TOMCAT_ZIP}
+
+# Create tomcat user/group
 echo "Creating tomcat user and group..."
-sudo groupadd tomcat 2>/dev/null || echo "Group 'tomcat' already exists"
-sudo useradd -s /bin/false -g tomcat -d /opt/tomcat tomcat 2>/dev/null || echo "User 'tomcat' already exists"
+sudo groupadd tomcat 2>/dev/null || true
+sudo useradd -s /bin/false -g tomcat -d ${INSTALL_DIR} tomcat 2>/dev/null || true
 
-# Set permissions
+# Permissions
 echo "Setting permissions..."
-sudo chown -R tomcat:tomcat /opt/tomcat
-sudo chmod +x /opt/tomcat/bin/*.sh
+sudo chown -R tomcat:tomcat ${INSTALL_DIR}
+sudo chmod +x ${INSTALL_DIR}/bin/*.sh
+
+# ==============================
+# Production Cleanup (IMPORTANT)
+# ==============================
+
+echo "Removing default web applications..."
+sudo rm -rf \
+  ${INSTALL_DIR}/webapps/docs \
+  ${INSTALL_DIR}/webapps/examples \
+  ${INSTALL_DIR}/webapps/manager \
+  ${INSTALL_DIR}/webapps/host-manager
+
+echo "Removing default ROOT app (deploy your own)..."
+sudo rm -rf ${INSTALL_DIR}/webapps/ROOT
+sudo rm -f  ${INSTALL_DIR}/webapps/ROOT.war
+
+echo "Cleaning temp and work directories..."
+sudo rm -rf ${INSTALL_DIR}/temp/*
+sudo rm -rf ${INSTALL_DIR}/work/*
+
+echo "Removing Windows .bat files..."
+sudo rm -f ${INSTALL_DIR}/bin/*.bat
 
 # Start Tomcat
 echo "Starting Tomcat..."
-sudo /opt/tomcat/bin/startup.sh
+sudo -u tomcat ${INSTALL_DIR}/bin/startup.sh
 
-# Wait a few seconds for Tomcat to fully start
-echo "Waiting for Tomcat to start..."
+# Wait for startup
 sleep 5
 
 # Test Tomcat
 echo "Testing Tomcat..."
-curl -s http://localhost:8080 > /dev/null
-if [ $? -eq 0 ]; then
+if curl -s http://localhost:8080 > /dev/null; then
     echo "=========================================="
-    echo "✓ Tomcat installation successful!"
-    echo "✓ Tomcat is running on port 8080"
+    echo "✓ Tomcat installation successful"
+    echo "✓ Running on port 8080"
     echo "=========================================="
-    echo "Access Tomcat at: http://181.41.140.18:8080"
 else
     echo "=========================================="
-    echo "✗ Warning: Tomcat may not be running properly"
-    echo "Check logs at: /opt/tomcat/logs/catalina.out"
+    echo "✗ Tomcat may not be running"
+    echo "Check logs: ${INSTALL_DIR}/logs/catalina.out"
     echo "=========================================="
 fi
 
-# Show Tomcat status
+# Status
 echo ""
 echo "Tomcat process:"
 ps aux | grep tomcat | grep -v grep
